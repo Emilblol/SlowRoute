@@ -68,8 +68,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Configuration conf = Configuration.getInstance();
-        conf.load(this, PreferenceManager.getDefaultSharedPreferences(this));
+        org.osmdroid.config.IConfigurationProvider conf = Configuration.getInstance();        conf.load(this, PreferenceManager.getDefaultSharedPreferences(this));
         conf.setUserAgentValue(getPackageName());
         File base = new File(getCacheDir(), "osmdroid");
         conf.setOsmdroidBasePath(base);
