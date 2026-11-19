@@ -31,7 +31,7 @@
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:background="@null"
-                android:hint="Where do you want to go?"
+                android:hint="Where in Sweden do you want to go?"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:singleLine="true"
@@ -57,7 +57,7 @@
             android:paddingTop="4dp"
             android:paddingEnd="10dp"
             android:paddingBottom="4dp"
-            android:text="Red = not allowed for 30 km/h cars"
+            android:text="Red = not allowed for A-traktor"
             android:textColor="#FFC62828"
             android:textSize="13sp" />
     </LinearLayout>
@@ -76,7 +76,7 @@
             android:id="@+id/info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Search for a place, or long-press the map to set a start or destination."
+            android:text="Search for a place in Sweden, or long-press the map to set a start or destination."
             android:textColor="#FF222222"
             android:textSize="15sp" />
 

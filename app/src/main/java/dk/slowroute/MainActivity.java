@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.osmdroid.config.Configuration;
+import org.osmdroid.config.IConfigurationProvider;
 import org.osmdroid.events.DelayedMapListener;
 import org.osmdroid.events.MapEventsReceiver;
 import org.osmdroid.events.MapListener;
@@ -45,11 +46,12 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1;
-    private static final double MAX_TRIP_METERS = 30000.0;
+    private static final double MAX_TRIP_METERS = 100000.0;
+    private static final BoundingBox SWEDEN = new BoundingBox(69.4, 24.6, 55.0, 10.4);
     private static final double RED_MIN_ZOOM = 10.0;
     private static final int RED_COLOR = 0xDDE53935;
     private static final int ROUTE_COLOR = 0xFF1E6FD9;
-    private static final String DEFAULT_INFO = "Search for a place, or long-press the map to set a start or destination.";
+    private static final String DEFAULT_INFO = "Search for a place in Sweden, or long-press the map to set a start or destination.";
 
     private MapView map;
     private FolderOverlay redLayer;
@@ -68,7 +70,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        org.osmdroid.config.IConfigurationProvider conf = Configuration.getInstance();        conf.load(this, PreferenceManager.getDefaultSharedPreferences(this));
+        IConfigurationProvider conf = Configuration.getInstance();
+        conf.load(this, PreferenceManager.getDefaultSharedPreferences(this));
         conf.setUserAgentValue(getPackageName());
         File base = new File(getCacheDir(), "osmdroid");
         conf.setOsmdroidBasePath(base);
@@ -84,9 +87,10 @@ public class MainActivity extends Activity {
         map.setTileSource(TileSourceFactory.MAPNIK);
         map.setMultiTouchControls(true);
         map.getZoomController().setVisibility(CustomZoomButtonsController.Visibility.NEVER);
-        map.setMinZoomLevel(4.0);
+        map.setMinZoomLevel(5.0);
+        map.setScrollableAreaLimitDouble(SWEDEN);
         map.getController().setZoom(14.0);
-        map.getController().setCenter(new GeoPoint(55.6761, 12.5683));
+        map.getController().setCenter(new GeoPoint(59.3293, 18.0686));
 
         map.getOverlays().add(new MapEventsOverlay(new MapEventsReceiver() {
             public boolean singleTapConfirmedHelper(GeoPoint p) {
@@ -94,7 +98,7 @@ public class MainActivity extends Activity {
             }
 
             public boolean longPressHelper(GeoPoint p) {
-                askPointType(p);
+                checkSwedenThenAsk(p);
                 return true;
             }
         }));
@@ -239,9 +243,48 @@ public class MainActivity extends Activity {
         }
         if (myLocation != null && myLocation.getMyLocation() != null) {
             GeoPoint p = myLocation.getMyLocation();
-            return new GeoPoint(p.getLatitude(), p.getLongitude());
+            if (insideBox(SWEDEN, p)) {
+                return new GeoPoint(p.getLatitude(), p.getLongitude());
+            }
         }
         return null;
+    }
+
+    private static boolean insideBox(BoundingBox box, GeoPoint p) {
+        return p.getLatitude() <= box.getLatNorth() && p.getLatitude() >= box.getLatSouth()
+                && p.getLongitude() <= box.getLonEast() && p.getLongitude() >= box.getLonWest();
+    }
+
+    private void checkSwedenThenAsk(final GeoPoint p) {
+        if (!insideBox(SWEDEN, p)) {
+            Toast.makeText(this, "SlowRoute only works in Sweden.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        setBusy(true);
+        new Thread(new Runnable() {
+            public void run() {
+                String country;
+                try {
+                    country = OsmData.countryCode(p);
+                } catch (Exception e) {
+                    country = null;
+                }
+                final boolean ok = country == null || "se".equals(country);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (isFinishing()) {
+                            return;
+                        }
+                        setBusy(false);
+                        if (ok) {
+                            askPointType(p);
+                        } else {
+                            Toast.makeText(MainActivity.this, "That's outside Sweden. SlowRoute only works in Sweden.", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }
+        }).start();
     }
 
     private void askPointType(final GeoPoint p) {
@@ -355,14 +398,14 @@ public class MainActivity extends Activity {
         }
         GeoPoint from = currentStart();
         if (from == null) {
-            info.setText("No start point yet. Turn on GPS, or long-press the map and choose \"Start here\".");
+            info.setText("No start point in Sweden yet. Turn on GPS, or long-press the map and choose \"Start here\".");
             return;
         }
         final GeoPoint start = from;
         final GeoPoint to = endMarker.getPosition();
         double straight = Geo.distance(start.getLatitude(), start.getLongitude(), to.getLatitude(), to.getLongitude());
         if (straight > MAX_TRIP_METERS) {
-            info.setText("That's more than 30 km away in a straight line. Pick a closer destination, or split the trip into parts.");
+            info.setText("That's more than 100 km away. Pick a closer destination, or split the trip into parts.");
             return;
         }
         routeLayer.getItems().clear();
@@ -375,7 +418,7 @@ public class MainActivity extends Activity {
                 RouteResult result = null;
                 String error = null;
                 try {
-                    result = OsmData.route(start, to);
+                    result = Router.route(start, to);
                 } catch (OutOfMemoryError e) {
                     error = "That area has too many roads to load on this phone. Try a shorter trip.";
                 } catch (Exception e) {
@@ -402,7 +445,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (route == null) {
-            info.setText("No legal route found. The destination might only be reachable through red roads.");
+            info.setText("No legal route found. The destination might only be reachable through motorväg or motortrafikled.");
             return;
         }
         Polyline line = new Polyline(map);
@@ -418,8 +461,9 @@ public class MainActivity extends Activity {
         map.zoomToBoundingBox(BoundingBox.fromGeoPoints(route.points), true, 150);
         long minutes = Math.max(1L, Math.round(route.seconds / 60.0));
         info.setText(String.format(Locale.getDefault(),
-                "%.1f km · about %d min at 30 km/h\nOnly uses roads that are legal for 30 km/h cars.",
-                route.meters / 1000.0, minutes));
+                "%.1f km · about %d min at 30 km/h\n%s",
+                route.meters / 1000.0, minutes,
+                route.verified ? "Avoids motorväg and motortrafikled." : "Couldn't double-check this route against motorväg/motortrafikled. Watch the signs."));
     }
 
     private void refreshForbiddenRoads() {
@@ -463,7 +507,7 @@ public class MainActivity extends Activity {
                             redLayer.add(redLine(result.get(i)));
                         }
                         loadedBox = wanted;
-                        legend.setText("Red = not allowed for 30 km/h cars");
+                        legend.setText("Red = not allowed for A-traktor");
                         map.invalidate();
                     }
                 });

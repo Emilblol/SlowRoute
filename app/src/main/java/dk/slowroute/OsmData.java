@@ -31,7 +31,7 @@ public final class OsmData {
             "https://overpass.kumi.systems/api/interpreter"
     };
     private static final String NOMINATIM = "https://nominatim.openstreetmap.org/search";
-    private static final String USER_AGENT = "SlowRoute/1.0 (Android route planner for 30 km/h cars)";
+    private static final String USER_AGENT = "SlowRoute/1.1 (route planner for A-traktor)";
     private static final double[] MARGINS_KM = { 3.0, 8.0 };
 
     private OsmData() {
@@ -132,7 +132,7 @@ public final class OsmData {
     }
 
     public static Place search(String text, BoundingBox near) throws IOException {
-        String url = NOMINATIM + "?format=json&limit=1&q=" + URLEncoder.encode(text, "UTF-8")
+        String url = NOMINATIM + "?format=json&limit=1&countrycodes=se&q=" + URLEncoder.encode(text, "UTF-8")
                 + "&viewbox=" + String.format(Locale.US, "%.5f,%.5f,%.5f,%.5f",
                 near.getLonWest(), near.getLatNorth(), near.getLonEast(), near.getLatSouth());
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
@@ -163,6 +163,32 @@ public final class OsmData {
                 name = name.substring(0, comma);
             }
             return new Place(point, name);
+        } catch (JSONException e) {
+            throw new IOException("unexpected answer from search server");
+        }
+    }
+
+    public static String countryCode(GeoPoint p) throws IOException {
+        String url = String.format(Locale.US, "https://nominatim.openstreetmap.org/reverse?format=json&zoom=3&lat=%.6f&lon=%.6f",
+                p.getLatitude(), p.getLongitude());
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(10000);
+        c.setReadTimeout(15000);
+        c.setRequestProperty("User-Agent", USER_AGENT);
+        String body;
+        try {
+            int code = c.getResponseCode();
+            if (code != 200) {
+                throw new IOException("search server answered " + code);
+            }
+            body = readAll(c.getInputStream());
+        } finally {
+            c.disconnect();
+        }
+        try {
+            JSONObject json = new JSONObject(body);
+            JSONObject address = json.optJSONObject("address");
+            return address == null ? "" : address.optString("country_code", "");
         } catch (JSONException e) {
             throw new IOException("unexpected answer from search server");
         }
