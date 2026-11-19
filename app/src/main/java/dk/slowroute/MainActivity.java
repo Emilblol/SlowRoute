@@ -422,7 +422,7 @@ public class MainActivity extends Activity {
                 } catch (OutOfMemoryError e) {
                     error = "That area has too many roads to load on this phone. Try a shorter trip.";
                 } catch (Exception e) {
-                    error = "Couldn't load road data (" + e.getMessage() + "). Check your internet and try again.";
+                    error = "Couldn't get a route (" + e.getMessage() + "). Check your internet and try again.";
                 }
                 final RouteResult route = result;
                 final String err = error;
@@ -463,7 +463,7 @@ public class MainActivity extends Activity {
         info.setText(String.format(Locale.getDefault(),
                 "%.1f km · about %d min at 30 km/h\n%s",
                 route.meters / 1000.0, minutes,
-                route.verified ? "Avoids motorväg and motortrafikled." : "Couldn't double-check this route against motorväg/motortrafikled. Watch the signs."));
+                route.verified ? "Avoids motorväg and motortrafikled." : "Couldn't fully check this route against motorväg/motortrafikled. Watch the signs."));
     }
 
     private void refreshForbiddenRoads() {

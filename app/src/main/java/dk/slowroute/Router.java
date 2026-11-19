@@ -9,7 +9,6 @@ import java.util.List;
 
 public final class Router {
     private static final int MAX_ATTEMPTS = 6;
-    private static final double OFFLINE_FALLBACK_METERS = 12000.0;
     private static final double CHECK_MARGIN_DEG = 0.02;
 
     private Router() {
@@ -19,19 +18,16 @@ public final class Router {
         List<GeoPoint> excludes = new ArrayList<GeoPoint>();
         BoundingBox checkedBox = null;
         RouteChecker checker = null;
+        RouteResult last = null;
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            RouteResult result;
-            try {
-                result = Valhalla.route(from, to, excludes);
-            } catch (IOException e) {
-                if (attempt == 0 && straight(from, to) <= OFFLINE_FALLBACK_METERS) {
-                    return OsmData.route(from, to);
-                }
-                throw e;
-            }
+            RouteResult result = Valhalla.route(from, to, excludes);
             if (result == null) {
-                return null;
+                if (last != null) {
+                    last.verified = false;
+                }
+                return last;
             }
+            last = result;
             BoundingBox need = BoundingBox.fromGeoPoints(result.points);
             if (checkedBox == null || !contains(checkedBox, need)) {
                 BoundingBox wanted = new BoundingBox(
@@ -53,11 +49,10 @@ public final class Router {
             }
             excludes.addAll(bad);
         }
-        return null;
-    }
-
-    private static double straight(GeoPoint a, GeoPoint b) {
-        return Geo.distance(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+        if (last != null) {
+            last.verified = false;
+        }
+        return last;
     }
 
     private static boolean contains(BoundingBox outer, BoundingBox inner) {

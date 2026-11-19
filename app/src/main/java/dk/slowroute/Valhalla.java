@@ -8,9 +8,9 @@ import org.osmdroid.util.GeoPoint;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,38 +28,42 @@ public final class Valhalla {
         } catch (JSONException e) {
             throw new IOException("could not build route request");
         }
-        HttpURLConnection c = (HttpURLConnection) new URL(SERVER).openConnection();
+        HttpURLConnection c = (HttpURLConnection) new URL(SERVER + "?json=" + URLEncoder.encode(body, "UTF-8")).openConnection();
         c.setConnectTimeout(15000);
         c.setReadTimeout(30000);
-        c.setDoOutput(true);
-        c.setRequestMethod("POST");
         c.setRequestProperty("User-Agent", USER_AGENT);
-        c.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        c.setRequestProperty("Accept", "application/json");
         String answer;
         int code;
         try {
-            OutputStream out = c.getOutputStream();
-            try {
-                out.write(body.getBytes("UTF-8"));
-            } finally {
-                out.close();
-            }
             code = c.getResponseCode();
             InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
             answer = in == null ? "" : readAll(in);
         } finally {
             c.disconnect();
         }
-        if (code == 400) {
-            return null;
-        }
         if (code != 200) {
-            throw new IOException("route server answered " + code);
+            int errorCode = -1;
+            String message = "route server answered " + code;
+            try {
+                JSONObject err = new JSONObject(answer);
+                errorCode = err.optInt("error_code", -1);
+                String text = err.optString("error", "");
+                if (text.length() > 0) {
+                    message = "route server: " + text;
+                }
+            } catch (JSONException e) {
+                errorCode = -1;
+            }
+            if (errorCode == 170 || errorCode == 171 || errorCode == 442 || errorCode == 443) {
+                return null;
+            }
+            throw new IOException(message);
         }
         try {
             return parse(new JSONObject(answer));
         } catch (JSONException e) {
-            throw new IOException("unexpected answer from route server");
+            throw new IOException("route server sent something unexpected (" + e.getMessage() + ")");
         }
     }
 
@@ -81,7 +85,6 @@ public final class Valhalla {
         root.put("costing", "auto");
         root.put("costing_options", options);
         root.put("units", "kilometers");
-        root.put("directions_type", "none");
         if (excludes != null && !excludes.isEmpty()) {
             JSONArray ex = new JSONArray();
             for (int i = 0; i < excludes.size(); i++) {

@@ -63,13 +63,12 @@ public final class OsmData {
 
     public static List<List<GeoPoint>> fetchForbidden(BoundingBox box) throws IOException {
         String b = bbox(box.getLatSouth(), box.getLonWest(), box.getLatNorth(), box.getLonEast());
-        String query = "[out:json][timeout:25];("
+        String query = "[out:json][timeout:20];("
                 + "way[\"highway\"~\"^(motorway|motorway_link)$\"](" + b + ");"
-                + "way[\"highway\"][\"motorroad\"=\"yes\"](" + b + ");"
-                + "way[\"highway\"][\"minspeed\"](" + b + ");"
+                + "way[\"motorroad\"=\"yes\"](" + b + ");"
                 + ");out geom qt;";
         final List<List<GeoPoint>> lines = new ArrayList<List<GeoPoint>>();
-        InputStream in = overpass(query);
+        InputStream in = overpass(query, 30000);
         try {
             readElements(in, new ElementHandler() {
                 public void onElement(Element e) {
@@ -109,7 +108,7 @@ public final class OsmData {
                 + "way[\"highway\"~\"" + RoadRules.ROUTABLE_REGEX + "\"](" + box + ");"
                 + "(._;>;);out qt;";
         final RoadGraph graph = new RoadGraph();
-        InputStream in = overpass(query);
+        InputStream in = overpass(query, 150000);
         String remark;
         try {
             remark = readElements(in, new ElementHandler() {
@@ -198,11 +197,11 @@ public final class OsmData {
         return String.format(Locale.US, "%.6f,%.6f,%.6f,%.6f", south, west, north, east);
     }
 
-    private static InputStream overpass(String query) throws IOException {
+    private static InputStream overpass(String query, int readTimeout) throws IOException {
         IOException last = null;
         for (int i = 0; i < OVERPASS_SERVERS.length; i++) {
             try {
-                return post(OVERPASS_SERVERS[i], query);
+                return post(OVERPASS_SERVERS[i], query, readTimeout);
             } catch (IOException e) {
                 last = e;
             }
@@ -210,10 +209,10 @@ public final class OsmData {
         throw last;
     }
 
-    private static InputStream post(String server, String query) throws IOException {
+    private static InputStream post(String server, String query, int readTimeout) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(server).openConnection();
-        c.setConnectTimeout(15000);
-        c.setReadTimeout(150000);
+        c.setConnectTimeout(10000);
+        c.setReadTimeout(readTimeout);
         c.setDoOutput(true);
         c.setRequestMethod("POST");
         c.setRequestProperty("User-Agent", USER_AGENT);
