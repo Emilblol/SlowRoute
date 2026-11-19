@@ -21,6 +21,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.conscrypt.Conscrypt;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.config.IConfigurationProvider;
 import org.osmdroid.events.DelayedMapListener;
@@ -41,6 +42,7 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.io.File;
+import java.security.Security;
 import java.util.List;
 import java.util.Locale;
 
@@ -70,6 +72,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1);
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
         IConfigurationProvider conf = Configuration.getInstance();
         conf.load(this, PreferenceManager.getDefaultSharedPreferences(this));
         conf.setUserAgentValue(getPackageName());
