@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private static final double MAX_TRIP_METERS = 100000.0;
     private static final BoundingBox SWEDEN = new BoundingBox(69.4, 24.6, 55.0, 10.4);
     private static final double RED_MIN_ZOOM = 10.0;
+    private static final String ROAD_MAP_MB = "100";
     private static final int RED_COLOR = 0xDDE53935;
     private static final int ROUTE_COLOR = 0xFF1E6FD9;
     private static final String DEFAULT_INFO = "Search for a place in Sweden, or long-press the map to set a start or destination.";
@@ -68,6 +69,7 @@ public class MainActivity extends Activity {
     private TextView legend;
     private EditText search;
     private ProgressBar progress;
+    private TextView offline;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +92,14 @@ public class MainActivity extends Activity {
         legend = (TextView) findViewById(R.id.legend);
         search = (EditText) findViewById(R.id.search);
         progress = (ProgressBar) findViewById(R.id.progress);
+        offline = (TextView) findViewById(R.id.offline);
+        offline.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                if (GraphStore.get() == null && !GraphStore.isBusy()) {
+                    askDownload();
+                }
+            }
+        });
 
         map.setTileSource(TileSourceFactory.MAPNIK);
         map.setMultiTouchControls(true);
@@ -175,6 +185,74 @@ public class MainActivity extends Activity {
                 });
             }
         });
+
+        if (GraphStore.get() != null) {
+            showOffline("Offline road map ready · instant routes", false);
+        } else if (GraphStore.isDownloaded(getFilesDir())) {
+            showOffline("Loading road map…", true);
+            GraphStore.open(getFilesDir(), graphListener());
+        } else if (!GraphStore.isBusy()) {
+            showOffline("Tap to download the road map for instant routes", true);
+            askDownload();
+        }
+    }
+
+    private void showOffline(String text, boolean visible) {
+        offline.setText(text);
+        offline.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private void askDownload() {
+        new AlertDialog.Builder(this)
+                .setTitle("Instant routes")
+                .setMessage("Download the road map of Sweden once (about " + ROAD_MAP_MB + " MB, best on Wi-Fi). After that, routes are found instantly, even without internet.")
+                .setPositiveButton("Download", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        showOffline("Downloading road map… 0%", true);
+                        GraphStore.download(getFilesDir(), graphListener());
+                    }
+                })
+                .setNegativeButton("Later", null)
+                .show();
+    }
+
+    private GraphStore.Listener graphListener() {
+        return new GraphStore.Listener() {
+            public void onProgress(final int percent) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (!isFinishing()) {
+                            showOffline("Downloading road map… " + percent + "%", true);
+                        }
+                    }
+                });
+            }
+
+            public void onReady(OfflineGraph graph) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (!isFinishing()) {
+                            showOffline("Road map ready · routes are now instant", true);
+                            offline.postDelayed(new Runnable() {
+                                public void run() {
+                                    offline.setVisibility(View.GONE);
+                                }
+                            }, 4000);
+                        }
+                    }
+                });
+            }
+
+            public void onFailed(final String message) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (!isFinishing()) {
+                            showOffline("Road map download failed (" + message + "). Tap to try again.", true);
+                        }
+                    }
+                });
+            }
+        };
     }
 
     @Override
@@ -483,7 +561,8 @@ public class MainActivity extends Activity {
         info.setText(String.format(Locale.getDefault(),
                 "%.1f km · about %d min at 30 km/h\n%s",
                 route.meters / 1000.0, minutes,
-                route.verified ? "Avoids motorväg and motortrafikled." : "Couldn't fully check this route against motorväg/motortrafikled. Watch the signs."));
+                route.offline ? "Only legal roads for A-traktor (offline map)."
+                        : route.verified ? "Avoids motorväg and motortrafikled." : "Couldn't fully check this route against motorväg/motortrafikled. Watch the signs."));
     }
 
     private void refreshForbiddenRoads() {

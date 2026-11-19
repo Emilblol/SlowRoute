@@ -15,6 +15,23 @@ public final class Router {
     }
 
     public static RouteResult route(GeoPoint from, GeoPoint to) throws IOException {
+        OfflineGraph graph = GraphStore.get();
+        if (graph != null) {
+            OfflineGraph.Path path = graph.route(from.getLatitude(), from.getLongitude(), to.getLatitude(), to.getLongitude());
+            if (path != null) {
+                List<GeoPoint> points = new ArrayList<GeoPoint>(path.lats.length);
+                double meters = 0;
+                for (int i = 0; i < path.lats.length; i++) {
+                    points.add(new GeoPoint(path.lats[i], path.lons[i]));
+                    if (i > 0) {
+                        meters += Geo.distance(path.lats[i - 1], path.lons[i - 1], path.lats[i], path.lons[i]);
+                    }
+                }
+                RouteResult result = new RouteResult(points, meters, path.seconds);
+                result.offline = true;
+                return result;
+            }
+        }
         List<GeoPoint> excludes = new ArrayList<GeoPoint>();
         BoundingBox checkedBox = null;
         RouteChecker checker = null;

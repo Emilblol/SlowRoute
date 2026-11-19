@@ -9,6 +9,7 @@ public final class RouteResult {
     public final double meters;
     public final double seconds;
     public boolean verified = true;
+    public boolean offline;
 
     public RouteResult(List<GeoPoint> points, double meters, double seconds) {
         this.points = points;
