@@ -36,7 +36,9 @@ public final class Router {
                         Math.max(-85.0, need.getLatSouth() - CHECK_MARGIN_DEG),
                         Math.max(-180.0, need.getLonWest() - CHECK_MARGIN_DEG * 2));
                 try {
-                    checker = new RouteChecker(OsmData.fetchForbidden(wanted), wanted.getCenterLatitude());
+                    ForbiddenCache cache = ForbiddenCache.get();
+                    List<List<GeoPoint>> forbidden = cache != null ? cache.query(wanted) : OsmData.fetchForbidden(wanted);
+                    checker = new RouteChecker(forbidden, wanted.getCenterLatitude());
                     checkedBox = wanted;
                 } catch (IOException e) {
                     result.verified = false;

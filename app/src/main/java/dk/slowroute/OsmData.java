@@ -67,8 +67,20 @@ public final class OsmData {
                 + "way[\"highway\"~\"^(motorway|motorway_link)$\"](" + b + ");"
                 + "way[\"motorroad\"=\"yes\"](" + b + ");"
                 + ");out geom qt;";
+        return fetchLines(query, 30000);
+    }
+
+    public static List<List<GeoPoint>> fetchForbiddenSweden() throws IOException {
+        String query = "[out:json][timeout:180];area[\"ISO3166-1\"=\"SE\"][admin_level=2]->.se;("
+                + "way[\"highway\"~\"^(motorway|motorway_link)$\"](area.se);"
+                + "way[\"motorroad\"=\"yes\"](area.se);"
+                + ");out geom qt;";
+        return fetchLines(query, 240000);
+    }
+
+    private static List<List<GeoPoint>> fetchLines(String query, int timeout) throws IOException {
         final List<List<GeoPoint>> lines = new ArrayList<List<GeoPoint>>();
-        InputStream in = overpass(query, 30000);
+        InputStream in = overpass(query, timeout);
         try {
             readElements(in, new ElementHandler() {
                 public void onElement(Element e) {

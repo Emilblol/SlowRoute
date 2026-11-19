@@ -124,7 +124,7 @@ public class MainActivity extends Activity {
                 refreshForbiddenRoads();
                 return true;
             }
-        }, 600));
+        }, 250));
 
         ((Button) findViewById(R.id.searchButton)).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -160,6 +160,19 @@ public class MainActivity extends Activity {
         map.post(new Runnable() {
             public void run() {
                 refreshForbiddenRoads();
+            }
+        });
+
+        ForbiddenCache.prepare(getFilesDir(), new Runnable() {
+            public void run() {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (!isFinishing()) {
+                            loadedBox = null;
+                            refreshForbiddenRoads();
+                        }
+                    }
+                });
             }
         });
     }
@@ -495,7 +508,8 @@ public class MainActivity extends Activity {
             public void run() {
                 List<List<GeoPoint>> lines;
                 try {
-                    lines = OsmData.fetchForbidden(wanted);
+                    ForbiddenCache cache = ForbiddenCache.get();
+                    lines = cache != null ? cache.query(wanted) : OsmData.fetchForbidden(wanted);
                 } catch (Exception e) {
                     lines = null;
                 }
